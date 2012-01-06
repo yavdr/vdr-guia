@@ -1,9 +1,5 @@
 build:
-<<<<<<< HEAD
 	@npm config set registry http://registry.npmjs.org/
-=======
-    @npm config set registry http://registry.npmjs.org/
->>>>>>> 93250c8... new check for lp build
 	@npm install --prefix $(CURDIR)
 
 install:

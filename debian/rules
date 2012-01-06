@@ -10,28 +10,14 @@
 #export DH_VERBOSE=1
 
 build:
-<<<<<<< HEAD
-<<<<<<< HEAD
 	# nothing
-=======
->>>>>>> 93250c8... new check for lp build
-=======
->>>>>>> 93250c8... new check for lp build
 	$(MAKE)
 
 clean:
 	dh_testdir
 	dh_testroot
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 	$(MAKE) clean || true
-=======
-    $(MAKE) clean
->>>>>>> 93250c8... new check for lp build
-=======
-    $(MAKE) clean
->>>>>>> 93250c8... new check for lp build
 
 	dh_clean
 
