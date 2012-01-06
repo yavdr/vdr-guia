@@ -1,162 +1,185 @@
 var TVGuideView = Backbone.View.extend({
     url: "tvguide",
+    template: 'TVGuideTemplate',
+    tagName: 'div',
 
     initialize: function () {
-        $('.popover').live('hover', {view: this}, this.handlePopover);
-        $('.record > img').live('hover', this.handleRecordIcon);
-        $('.record').live('click', this.recordEvent);
+        // Create new XDate object and set date defaults
+        var d = new XDate();
+        this.options.date = this.options.date || d.toString('dd.MM.yyyy');
+        this.options.page = this.options.page || 1;
 
-        $('.selectChannel').live('click', {view: this}, this.selectChannel);
-    },
+        // Parse date string to XDate object
+        this.options.date = new XDate(this.options.date);
 
-    destructor: function () {
-        $('#selectChannelsDialog').remove();
-        $('.modal-backdrop').remove();
+        // Reference current view
+        var self = this;
+
+        // Load collection for channels
+        this.tvguide = new TVGuideCollection();
         
-        $('.popover').die('hover');
-        $('.record > img').die('hover');
-        $('.record').die('click');
-
-        $('.selectChannel').die('click');
-
-        $(this.el).children().remove();
-        $(this.el).unbind();
+        // Fetch channels for current page
+        this.tvguide.fetch({
+            data: {
+                page: this.options.page
+            }, success: function () {
+                // Render template
+                var template = _.template( $('#' + self.template).html(), {} );
+                $(self.el).html( template );
+                
+                // Get events
+                self.getEvents(function () {
+                    this.render();
+                });
+            }
+        });
     },
 
     events: {
-        'click .eventDetails': 'showEventDetails',
-        'hover .eventDetails': 'showEventPopover',
-        'click .slideUp': 'slideUp',
+        'click #guide > div.slideUp': 'slideUp',
         'click .selectChannels': 'showChannelsDialog'
     },
 
-    showEventDetails: function (ev) {
-        $('.popover').remove();
-        location.hash = '/Event/' + $(ev.currentTarget).attr('_id');
-    },
-
-    showEventPopover: function (ev) {
-        if (!$(ev.currentTarget).hasClass('isPrime')) {
-            if (ev.type == 'mouseenter') {
-                $(ev.currentTarget).popover('show');
-                $(ev.currentTarget).css({textDecoration: 'underline'});
-            } else {
-                var popover = ev.currentTarget;
-
-                this.popoverEl = popover;
-                this.popoverId = setTimeout(function () {
-                    $(popover).popover('hide');
-                }, 100);
-
-                $(ev.currentTarget).css({textDecoration: 'none'});
-            }
-        }
-    },
-
-    handlePopover: function (ev) {
-        if (ev.type == 'mouseenter') {
-            clearTimeout(ev.data.view.popoverId);
-        } else {
-            $(ev.data.view.popoverEl).popover('hide');
-        }
-    },
-
-    recordEvent: function (ev) {
-        location.hash = '/TVGuide/' + $(ev.currentTarget).attr('_id');
-        console.log('Record: ' + $(ev.currentTarget).attr('_id'));
-    },
-
-    handleRecordIcon: function (ev) {
-        var image = '';
-        var image_record = '-2';
-        
-        if ($(ev.currentTarget).attr('timer_active')) {
-            image = '-2';
-            image_record = '';
-        }
-        
-        if (ev.type == 'mouseenter') {
-            $(ev.currentTarget).attr('src', '/icons/devine/black/16x16/Circle' + image_record + '.png');
-        } else {
-            $(ev.currentTarget).attr('src', '/icons/devine/black/16x16/Circle' + image + '.png');
-        }
-    },
-
     showChannelsDialog: function () {
-        $('#selectChannelsDialog').modal({
-            keyboard: true,
-            backdrop: true,
-            show: true
+        // Load channels selection dialog
+        var channelSelect = new ChannelSelectDialogView({
+            model: new ChannelCollection(),
+            date: this.options.date.toString('dd.MM.yyyy')
         });
-    },
 
-    selectChannel: function (ev) {
-        $('#selectChannelsDialog').modal('hide');
-        location.hash = '/TVGuide/' + ev.data.view.active + '/' + $(ev.currentTarget).attr('page');
+        // Render the view
+        channelSelect.render(function () {
+            // Apply generated HTML to document.body
+            $('body').append(this.el);
+
+            // Find the first element and show the dialog
+            $(this.el).modal({
+                keyboard: true,
+                backdrop: true,
+                show: true
+            });
+            
+            $(this.el).bind('hidden', function () {
+                channelSelect.remove();
+            });
+        });
     },
 
     slideUp: function (ev) {
-        if ($(ev.currentTarget).hasClass('sectionHidden')) {
-            $('.section_' + $(ev.currentTarget).attr('section')).show();
-            $(ev.currentTarget).removeClass('sectionHidden');
-        } else {
-            $('.section_' + $(ev.currentTarget).attr('section')).hide();
+        // Check if current section is hidden
+        if (!$(ev.currentTarget).hasClass('sectionHidden')) {
+            // Hide current section and set it as hidden
+            $('.' + $(ev.currentTarget).data('section')).slideUp();
             $(ev.currentTarget).addClass('sectionHidden');
+        } else {
+            // Show current section and set it as visible
+            $('.' + $(ev.currentTarget).data('section')).slideDown();
+            $(ev.currentTarget).removeClass('sectionHidden');
         }
     },
 
-    generateHTML: function (callback) {
+    getEvents: function (callback) {
+        // Reference current view
         var self = this;
-        this.tvguide = new TVGuideCollection();
-        this.channels = new ChannelCollection();
 
-        var d = new XDate();
-        var active = d.toString('dd.MM.yyyy');
-        var page = 1;
+        // Map over fetched channels
+        async.map(this.tvguide, function (channel, callback) {
+            // Fetch event from current channel for the passed date
+            channel.events.fetch({
+                data: {
+                    date: {
+                        year: self.options.date.toString('yyyy'),
+                        month: self.options.date.toString('MM'),
+                        day: self.options.date.toString('dd')
+                    }
+                }, success: function (events) {
+                    // Finish step
+                    callback(null, events);
+                }
+            });
+        }, function (err, result) {
+            // Set index to 0
+            var index = 0;
+            
+            // Map (sync) over fetched channels
+            async.mapSeries(self.tvguide, function (channel, callback) {
+                // Increment index by 1
+                index++;
+                
+                // render current channel and events
+                self.renderEvents(channel, index, callback);
+            }, function (err, result) {
+                // All rendering is finished, callback for applying generated template to #body div
+                callback.apply(self, []);
+            });
+        });
+    },
 
-        if (self.options.params.date !== undefined) {
-            active = self.options.params.date;
-        }
+    renderEvents: function (channel, index, callback) {
+        // Clone the current date for manipulation
+        var d = this.options.date.clone();
+        
+        // Load the channel view
+        var channelView = new TVGuideChannelView({
+            model: channel
+        });
 
-        this.active = active;
+        // Attach the channel to the event guide
+        $(this.el).find('#channels :nth-child(' + index + ')').html(channelView.render());
+        
+        // Get event sections and attach events
+        $(this.el).find(' #guide > .eventsection').each(function () {
+            // Copy current section
+            var el = this;
+            
+            // Get section time and set it to the date
+            d.setHours($(el).data('from'));
+            var starttime = d.getTime() / 1000;
+            
+            d.setHours($(el).data('to'));
+            var stoptime = d.getTime() / 1000;
+            
+            // Iterate over every fetched event
+            channel.events.forEach(function (event) {
+                // Check if events start and stoptime matching the current section time
+                if (event.get('start') >= starttime && event.get('start') < stoptime) {
+                    // Get the hour div from current section
+                    var sectionDiv = $(el).children('div[data-hour=\'' + parseInt(event.start_time().split(':')[0]) +'\']');
+                    var eventDiv = $(sectionDiv).children(':nth-child(' + index + ')');
 
-        d = new XDate(active);
+                    // Load the event view
+                    var eventView = new TVGuideEventView({
+                        model: event,
+                        el: eventDiv
+                    });
 
-        if (self.options.params.page !== undefined) {
-            page = self.options.params.page;
-        }
-
-        this.tvguide.fetch({data: {page: page, date: {
-            year: d.toString('yyyy'),
-            month: d.toString('MM'),
-            day: d.toString('dd')
-        }}, success: function (collection) {
-            self.channels.fetch({data: {active: true}, success: function (channels) {
-                callback.apply(this, [_.template(self.template, {events: collection, channels: channels, active: active, page: page})]);
-            }});
-        }});
+                    // Render the event
+                    eventView.render();
+                }
+            });
+        });
+        
+        // Finished generating events and channel, return to getEvents
+        callback(null, null);
     },
 
     render: function () {
-        var self = this;
-
-        this.generateHTML(function (res) {
-            self.el.html(res);
-            $(document).attr('title', $('#header_div').attr('title'));
-
-            $('.eventDetails').popover({
-                placement: 'left',
-                trigger: 'manual',
-                html: true
-            });
-
-            Application.loadingOverlay('hide');
-
-            if (typeof(self.postRender) == 'function') {
-                self.postRender();
-            }
+        // Load the pagination (date) element
+        var pagination = new TVGuidePaginationView({
+            el: $(this.el).find('.pagination'),
+            date: this.options.date.toString('dd.MM.yyyy'),
+            page: this.options.page
         });
 
+        // Render the pagination (date) element
+        pagination.render();
+
+        // Append the generate HTML to the #body div
+        $('#body').html(this.el);
+        
+        // Hide the loading spinner animation
+        GUIA.loadingOverlay('hide');
+        
         return this;
     }
 });
