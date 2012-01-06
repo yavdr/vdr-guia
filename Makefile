@@ -10,3 +10,4 @@ install:
 	cp -r src/* $(DESTDIR)/usr/share/vdr-guia/
 
 clean:
+	rm -r  $(DESTDIR)
