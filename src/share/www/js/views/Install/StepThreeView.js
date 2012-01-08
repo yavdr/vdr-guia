@@ -9,13 +9,16 @@ var InstallStepThreeView = Backbone.View.extend({
     },
 
     loadNextSite: function () {
-
+        socket.emit('Install:redirect', {}, function () {
+            location.reload(true);
+        });
+        
         return;
     },
 
     loadPreviousSite: function () {
-        var view = new InstallStepTwoView({
-            model: this.model
+        var view = new InstallSelectChannelView({
+            model: self.model
         });
 
         $('#body').html(view.render().el);
