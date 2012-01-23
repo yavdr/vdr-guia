@@ -1,10 +1,12 @@
-var events = mongoose.model('Event');
+var Epg = require('../lib/Epg');
 var actors = mongoose.model('Actor');
 var async = require('async');
 
 io.sockets.on('connection', function (socket) {
     socket.on('Searchresult:read', function (data, callback) {
-        data = data.data;
+        if (!socket.handshake.session.loggedIn) {
+            return false;
+        }
 
         var result = {
             events: {},
@@ -15,48 +17,32 @@ io.sockets.on('connection', function (socket) {
 
         async.parallel([
             function (callback) {
-                var i = 0;
-                var query = events.find({title: new RegExp(data.query, "ig")});
-
-                query.sort('start', 1);
-                query.populate('tmdbId');
-
-                query.exec(function (err, docs) {
+                var epg = new Epg();
+                epg.searchEvents(data.query, 10, function (docs) {
+                    docs = docs instanceof Array ? docs : new Array(docs);
                     docs.forEach(function (doc) {
-                        if (i == 3) {
-                            return;
-                        }
-
-                        if (result.events[doc.title] === undefined) {
-                            result.events[doc.title] = doc;
-                            i++;
+                        if (result.events[doc.channel_id + doc.title] === undefined) {
+                            result.events[doc.channel_id + doc.title] = doc;
                         }
                     });
 
-                    callback();
+                    callback(null, null);
                 });
             }, function (callback) {
-                var i = 0;
                 var query = actors.find();
 
-                query.or([{name: new RegExp(data.query, "ig")}, {character: new RegExp(data.query, "ig")}]);
+                query.or([{name:  new RegExp('(^| )' + data.query, "ig")}, {character: new RegExp('(^| )' + data.query, "ig")}]);
                 query.populate('tmdbId');
+                query.limit(10);
 
                 query.exec(function (err, docs) {
-                    console.log(arguments);
-
                     docs.forEach(function (doc) {
-                        if (i == 3) {
-                            return;
-                        }
-
                         if (result.actors[doc.name] === undefined) {
                             result.actors[doc.name] = doc;
-                            i++;
                         }
                     });
 
-                    callback();
+                    callback(null, null);
                 });
             }
         ], function(err, results){

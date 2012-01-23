@@ -2,8 +2,8 @@ var fs = require("fs");
 var i18n = require('i18n');
 var rest = require('restler');
 var uuid = require('node-uuid');
-var assetManager = require('connect-assetmanager');
-var assetHandler = require('connect-assetmanager-handlers');
+var async = require('async');
+var file = require('file');
 
 function Bootstrap (app, express) {
     this.app = app;
@@ -61,7 +61,7 @@ Bootstrap.prototype.setupExpress = function (cb) {
 
     app.configure(function () {
         self.env = 'production';
-        
+
         app.use(express.bodyParser());
         app.use(express.cookieParser());
 
@@ -85,6 +85,7 @@ Bootstrap.prototype.setupExpress = function (cb) {
             register: global
         });
 
+        app.use(express.static(__dirname + '/share/www'));
         app.use(express.favicon(__dirname + '/share/www/icons/favicon.ico'));
 
         /*
@@ -103,91 +104,13 @@ Bootstrap.prototype.setupExpress = function (cb) {
     app.configure('development', function () {
         self.env = 'developement';
         logging.setLevel('debug');
-        
-        app.use(express.static(__dirname + '/share/www'));
-        app.use(express.errorHandler({ dumpExceptions: true, showStack: true }));
+
+        app.use(express.errorHandler({dumpExceptions: true, showStack: true}));
         app.use(logging.requestLogger);
     });
-    
+
     app.configure('production', function () {
-        logging.setLevel('error');
-        
-        var assets = {
-            js: {
-                route: /\/app.js/,
-                path: __dirname + '/share/www/js/',
-                dataType: 'javascript',
-                files: [
-                    //'jquery/jquery-1.7.js',
-                    'jquery-plugins/blinky.js',
-                    'jquery-plugins/bootstrap-buttons.js',
-                    //'jquery-plugins/bootstrap-dropdown.js',
-                    'jquery-plugins/bootstrap-modal.js',
-                    'jquery-plugins/bootstrap-twipsy.js',
-                    'jquery-plugins/bootstrap-popover.js',
-                    'jquery-plugins/bootstrap-scrollspy.js',
-                    'jquery-plugins/bootstrap-tabs.js',
-                    'jquery-plugins/jquery.fancybox.js',
-                    'jquery-plugins/spin.min.js',
-                    //'backbone/backbone.js',
-                    //'backbone/underscore.js',
-                    'models/ChannelModel.js',
-                    'models/ConfigurationModel.js',
-                    'models/EventModel.js',
-                    'models/LogoModel.js',
-                    'models/NavigationModel.js',
-                    'models/RawEventModel.js',
-                    'models/RecordingModel.js',
-                    'models/SearchresultModel.js',
-                    'models/SearchtimerModel.js',
-                    'models/TimerModel.js',
-                    'models/TVGuideModel.js',
-                    'utils/sha512.js',
-                    'utils/xdate.js',
-                    'collections/ChannelCollection.js',
-                    'collections/EventCollection.js',
-                    'collections/LogoCollection.js',
-                    'collections/NavigationCollection.js',
-                    'collections/RecordingCollection.js',
-                    'collections/SearchresultCollection.js',
-                    'collections/SearchtimerCollection.js',
-                    'collections/TimerCollection.js',
-                    'collections/TVGuideCollection.js',
-                    'views/AboutView.js',
-                    'views/ContactView.js',
-                    'views/EventView.js',
-                    'views/HelpView.js',
-                    'views/LogoutView.js',
-                    'views/NavigationView.js',
-                    'views/ProfileView.js',
-                    'views/RecordingsView.js',
-                    'views/SearchView.js',
-                    'views/SettingsView.js',
-                    'views/TVGuideView.js',
-                    'views/WelcomeView.js',
-                    'views/Channel/Select/DialogView.js',
-                    'views/Help/ShortcutsView.js',
-                    'views/Settings/ChannelsView.js',
-                    'views/Settings/DatabaseView.js',
-                    'views/Settings/GuiaView.js',
-                    'views/TVGuide/ChannelView.js',
-                    'views/TVGuide/EventView.js',
-                    'views/TVGuide/PaginationView.js',
-                    'bootstrap.js',
-                    'Application.js'
-                ],
-                postManipulate: {
-                    '^': [
-                        //assetHandler.uglifyJsOptimize
-                    ]
-                }
-            }
-        };
-        
-        var assetsManagerMiddleware = assetManager(assets);
-        
-        app.use(express.static(__dirname + '/share/www'));
-        app.use(assetsManagerMiddleware);
+        logging.setLevel('info');
     });
 
     global.rest = rest;
@@ -206,6 +129,8 @@ Bootstrap.prototype.setupExpress = function (cb) {
 };
 
 Bootstrap.prototype.setupDatabase = function (cb) {
+    var self = this;
+
     global.mongoose = require('mongoose');
     global.Schema = mongoose.Schema;
 
@@ -240,6 +165,66 @@ Bootstrap.prototype.setupDatabase = function (cb) {
             ConfigurationSchema.findOne({}, function (err, data) {
                 global.guia = data;
 
+                if (data.get('dbversion') != '0.1') {
+                    async.parallel([
+                        function (callback) {
+                            var events = mongoose.model('Event');
+                            events.find({}, function (err, docs) {
+                                async.map(docs, function (doc, callback) {
+                                    doc.remove(function () {
+                                        callback(null, null);
+                                    });
+                                }, function () {
+                                    callback(null, null);
+                                });
+                            });
+                        }, function (callback) {
+                            var actors = mongoose.model('Actor');
+                            actors.find({}, function (err, docs) {
+                                async.map(docs, function (doc, callback) {
+                                    doc.remove(function () {
+                                        callback(null, null);
+                                    });
+                                }, function () {
+                                    callback(null, null);
+                                });
+                            });
+                        }, function (callback) {
+                            var actorDetails = mongoose.model('ActorDetail');
+                            actorDetails.find({}, function (err, docs) {
+                                async.map(docs, function (doc, callback) {
+                                    doc.remove(function () {
+                                        callback(null, null);
+                                    });
+                                }, function () {
+                                    callback(null, null);
+                                });
+                            });
+                        }, function (callback) {
+                            var movieDetails = mongoose.model('MovieDetail');
+                            movieDetails.find({}, function (err, docs) {
+                                async.map(docs, function (doc, callback) {
+                                    doc.remove(function () {
+                                        callback(null, null);
+                                    });
+                                }, function () {
+                                    callback(null, null);
+                                });
+                            });
+                        }, function (callback) {
+                            data.set({dbversion: '0.1'});
+                            data.save(function () {
+                                callback(null, null);
+                            });
+                        }], function () {
+                            mongoose.disconnect();
+                            self.setupDatabase(cb);
+                        }
+                    );
+
+                    return;
+                }
+
                 cb.apply(this, [{
                     installed: true,
                     vdrHost: data.vdrHost,
@@ -271,6 +256,7 @@ Bootstrap.prototype.setupSocketIo = function () {
                         // create a session object, passing data as request and our
                         // just acquired session data
                         data.session = new Session(data, session);
+
                         accept(null, true);
                     }
                 });
@@ -304,6 +290,83 @@ Bootstrap.prototype.setupSocketIo = function () {
 Bootstrap.prototype.setupViews = function () {
     var ConfigurationSchema = mongoose.model('Configuration');
     log.dbg('Setting up views ..');
+
+    var templates = new Array();
+    var jsFiles = new Array();
+
+    file.walkSync(__dirname + '/html/templates', function (path, subDirs, files) {
+        if (!path.match('Install')) {
+            files.forEach(function (file) {
+                if (file.match(/^\./)) {
+                    return;
+                }
+
+                file = file.replace('.html', '');
+
+                var template = path + '/' + file;
+                var templateId = template.replace(__dirname + '/html/templates', '').replace(/\//g, '');
+
+                log.dbg('Select template: ' + template + ' :: ' + templateId);
+                templates.push({
+                    id: templateId.replace(/index$/, ''),
+                    path: path + '/' + file
+                });
+            });
+        }
+    });
+
+    jsFiles.push('/js/jquery/jquery-1.7.js');
+
+    jsFiles.push('/js/jquery-plugins/blinky.js');
+    jsFiles.push('/js/jquery-plugins/bootstrap-alerts.js');
+    jsFiles.push('/js/jquery-plugins/bootstrap-buttons.js');
+    jsFiles.push('/js/jquery-plugins/bootstrap-dropdown.js');
+    jsFiles.push('/js/jquery-plugins/bootstrap-modal.js');
+    jsFiles.push('/js/jquery-plugins/bootstrap-scrollspy.js');
+    jsFiles.push('/js/jquery-plugins/bootstrap-tabs.js');
+    jsFiles.push('/js/jquery-plugins/bootstrap-twipsy.js');
+    jsFiles.push('/js/jquery-plugins/bootstrap-popover.js');
+    jsFiles.push('/js/jquery-plugins/jquery.endless-scroll.js');
+    jsFiles.push('/js/jquery-plugins/jquery.fancybox.js');
+    jsFiles.push('/js/jquery-plugins/lionbars.min.js');
+    jsFiles.push('/js/jquery-plugins/mousewheel.js');
+    jsFiles.push('/js/jquery-plugins/spin.min.js');
+
+    jsFiles.push('/js/backbone/underscore.js');
+    jsFiles.push('/js/backbone/backbone.js');
+
+    var walkThroughJs = new Array(
+        __dirname + '/share/www/js/utils',
+        __dirname + '/share/www/js/models',
+        __dirname + '/share/www/js/collections',
+        __dirname + '/share/www/js/views'
+    );
+
+    walkThroughJs.forEach(function (dir) {
+        file.walkSync(dir, function (path, subDirs, files) {
+            if (!path.match('Install')) {
+                if (path.match('js/backbone') || path.match('js/jquery-plugins')) {
+                    files = files.reverse();
+                }
+
+                files.forEach(function (jsFile) {
+                    if (jsFile.match(/^\./)) {
+                        return;
+                    }
+
+                    jsFile = (path + '/' + jsFile).replace(__dirname + '/share/www', '');
+
+                    log.dbg('Select js: ' + jsFile);
+                    jsFiles.push(jsFile);
+                });
+            }
+        });
+    });
+
+    jsFiles.push('/socket.io/socket.io.js');
+    jsFiles.push('/js/async.js');
+    jsFiles.push('/js/bootstrap.js');
+    jsFiles.push('/js/Application.js');
 
     this.app.all('*', function (req, res, next) {
         if (!installed && !req.url.match(/^\/templates\/install/)) {
@@ -342,7 +405,9 @@ Bootstrap.prototype.setupViews = function () {
                     isLoggedIn: req.session.loggedIn,
                     vdr: JSON.stringify(vdr.plugins),
                     guia: JSON.stringify(data),
-                    env: self.env
+                    env: self.env,
+                    templates: templates,
+                    jsFiles: jsFiles
                 });
             });
         });
@@ -421,11 +486,10 @@ Bootstrap.prototype.setupVdr = function () {
 };
 
 Bootstrap.prototype.setupEpgImport = function (restful) {
+    var self = this;
+
     var config = mongoose.model('Configuration');
     var EpgImport = require('./lib/Epg/Import');
-    var ActorDetails = require('./lib/Actor');
-    var MovieDetails = require('./lib/Movie');
-    var SeasonDetails = require('./lib/Season');
     var importer = new EpgImport(restful, 250);
 
     function runImporter () {
@@ -448,29 +512,79 @@ Bootstrap.prototype.setupEpgImport = function (restful) {
                         }, (1000 * 60 * 60) * doc.epgscandelay);
                     }
                 });
+
+                self.setupExtendedDetails();
             }
-
-            var ConfigurationSchema = mongoose.model('Configuration');
-
-            ConfigurationSchema.findOne({}, function (err, data) {
-                if (data.get('fetchTmdbActors')) {
-                    var actorDetails = new ActorDetails();
-                    actorDetails.fetchAll();
-                } else {
-                    log.inf('Tmdb Actors fetching disabled ..');
-                }
-
-                if (data.get('fetchTmdbMovies')) {
-                    var movieDetails = new MovieDetails();
-                    movieDetails.fetchAll();
-                } else {
-                    log.inf('Tmdb Movies fetching disabled ..');
-                }
-            });
         });
     }
 
     runImporter();
+};
+
+Bootstrap.prototype.setupExtendedDetails = function () {
+    if (this.extendedDetailsRunning === true) {
+        return;
+    }
+
+    this.extendedDetailsRunning = true;
+
+    var self = this;
+    var config = mongoose.model('Configuration');
+    var ActorDetails = require('./lib/Actor');
+    var MovieDetails = require('./lib/Movie');
+    var SeasonDetails = require('./lib/Season');
+    var EpgImport = require('./lib/Epg/Import');
+    var importer = new EpgImport();
+
+    var ConfigurationSchema = mongoose.model('Configuration');
+
+    ConfigurationSchema.findOne({}, function (err, data) {
+        async.parallel([function (callback) {
+            importer.evaluateType(function () {
+                if (data.get('fetchThetvdbSeasons')) {
+                    log.inf('Thetvdb Seasons fetching started ..');
+
+                    var seasonDetails = new SeasonDetails();
+                    seasonDetails.fetchAll(function () {
+                        log.inf('Thetvdb Seasons fetching finished ..');
+                        callback(null, null);
+                    });
+                } else {
+                    log.inf('Thetvdb Seasons fetching disabled ..');
+                    callback(null, null);
+                }
+            });
+        }, function (callback) {
+            if (data.get('fetchTmdbMovies')) {
+                log.inf('Tmdb Movies fetching started ..');
+
+                var movieDetails = new MovieDetails();
+                movieDetails.fetchAll(function () {
+                    log.inf('Tmdb Movies fetching finished ..');
+                    callback(null, null);
+                });
+            } else {
+                log.inf('Tmdb Movies fetching disabled ..');
+                callback(null, null);
+            }
+        }, function (callback) {
+            if (data.get('fetchTmdbActors')) {
+                log.inf('Tmdb Actors fetching started ..');
+
+                var actorDetails = new ActorDetails();
+                actorDetails.fetchAll(function () {
+                    log.inf('Tmdb Actors fetching finished ..');
+                    callback(null, null);
+                });
+            } else {
+                log.inf('Tmdb Actors fetching disabled ..');
+                callback(null, null);
+            }
+        }], function (err, result) {
+            log.inf('Extended details fetching finished ..');
+            self.extendedDetailsRunning = false;
+        });
+    });
 };
 
 Bootstrap.prototype.setupTimer = function (restful) {

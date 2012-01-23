@@ -1,5 +1,5 @@
 var rest = require('restler');
-var EventSchema = mongoose.model('Event');
+var events = mongoose.model('Event');
 
 function EpgTimer (restful) {
     this.restful = restful;
@@ -8,7 +8,7 @@ function EpgTimer (restful) {
 EpgTimer.prototype.refresh = function () {
     rest.get(this.restful + '/timers.json').on('success', function (res) {
         res.timers.forEach(function (timer) {
-            var query = EventSchema.find({event_id: timer.event_id});
+            var query = events.find({event_id: timer.event_id});
             query.populate('channel_id', null, {channel_id: timer.channel});
             
             query.each(function (err, doc, next) {
@@ -22,6 +22,7 @@ EpgTimer.prototype.refresh = function () {
                 }
                 
                 doc.set({
+                    timer_id: timer.id,
                     timer_active: timer.is_active,
                     timer_exists: timer.is_active
                 });
@@ -34,6 +35,53 @@ EpgTimer.prototype.refresh = function () {
     }).on('error', function () {
         return;
     });
+};
+
+EpgTimer.prototype.create = function (event, callback) {
+    log.dbg('Create timer for event id: ' + event.event_id);
+    
+    rest.post(this.restful + '/timers', {
+        data: {
+            channel: event.channel,
+            eventid: event.event_id,
+            minpre: 5,
+            minpost: 15
+        }
+    }).on('success', function (data) {
+        console.log(data);
+        
+        events.update({_id: event._id}, {timer_active: true, timer_id: data.timers[0].id}, null, function () {
+            callback(data.timers[0]);
+        });
+    }).on('error', function () {
+        events.update({_id: event._id}, {timer_active: true}, null, function () {
+            callback();
+        });
+    });
+};
+
+EpgTimer.prototype.del = function (event, callback) {
+    log.dbg('Delete timer for event id: ' + event.event_id);
+    
+    if (event.timer_id != null && event.timer_id != '') {
+        rest.del(this.restful + '/timers/' + event.timer_id).on('success', function () {
+            events.update({_id: event._id}, {timer_active: false, timer_id: null}, null, function () {
+                callback({success: true});
+            });
+        }).on('error', function () {
+            events.update({_id: event._id}, {timer_active: false}, null, function () {
+                callback();
+            });
+        });
+    } else {
+        events.update({_id: event._id}, {timer_active: false}, null, function () {
+            callback();
+        });
+    }
+};
+
+EpgTimer.prototype.update = function (event, callback) {
+    
 };
 
 module.exports = EpgTimer;

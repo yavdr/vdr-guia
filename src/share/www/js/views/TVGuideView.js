@@ -9,7 +9,11 @@ var TVGuideView = Backbone.View.extend({
         // Bind click on the select channels button
         'click .selectChannels': 'showChannelsDialog',
 
-        'TVGuidePagination:dateSwitched': 'load'
+        // Bind click for changing date
+        'TVGuidePagination:dateSwitched': 'load',
+        
+        'click .previousChannels': 'switchChannels',
+        'click .nextChannels': 'switchChannels',
     },
 
     initialize: function () {
@@ -24,6 +28,35 @@ var TVGuideView = Backbone.View.extend({
 
         // Write date to options, if it is not set create one
         this.options.date = this.options.date || d.toString('dd.MM.yyyy');
+
+        /*if (parseInt(d.toString('HH')) >= 0 && parseInt(d.toString('HH')) < 5) {
+            var checkNext = new XDate(this.options.date).addDays(-1).toString('dd.MM.yyyy');
+            var yesterday = d.clone().addDays(-1).toString('dd.MM.yyyy');
+
+            console.log(checkNext, yesterday);
+
+            if (checkNext == yesterday) {
+                this.options.date = yesterday;
+            }
+        }*/
+
+        if (this.options.date == d.toString('dd.MM.yyyy')) {
+            var showSection = parseInt(d.toString('HH'));
+
+            if (showSection >= 5 && showSection < 12) {
+                this.options.showSection = 'morning';
+            } else if (showSection >= 12 && showSection < 18) {
+                this.options.showSection = 'afternoon';
+            } else if (showSection >= 18 && showSection < 20) {
+                this.options.showSection = 'earlyevening';
+            } else if (showSection >= 20 && showSection < 24) {
+                this.options.showSection = 'evening';
+            } else if (showSection >= 0 && showSection < 5) {
+                this.options.showSection = 'night';
+            }
+        } else {
+            this.options.showSection = 'all';
+        }
 
         // Set current page, if it is not set set to 1
         this.options.page = this.options.page || 1;
@@ -85,7 +118,7 @@ var TVGuideView = Backbone.View.extend({
                 page: this.options.page
             }, success: function () {
                 // Render template
-                var template = _.template( $('#' + self.template).html(), {} );
+                var template = _.template( $('#' + self.template).html(), {show: self.options.showSection} );
                 $(self.el).html( template );
 
                 // Get events
@@ -94,6 +127,18 @@ var TVGuideView = Backbone.View.extend({
                 });
             }
         });
+    },
+    
+    switchChannels: function (ev) {
+        if ($(ev.currentTarget).hasClass('nextChannels')) {
+            this.options.page++;
+            GUIA.router.navigate('!/TVGuide/' + this.options.date.toString('dd.MM.yyyy') + '/' + this.options.page, true);
+        } else {
+            if (this.options.page != 1) {
+                this.options.page--;
+                GUIA.router.navigate('!/TVGuide/' + this.options.date.toString('dd.MM.yyyy') + '/' + this.options.page, true);
+            }
+        }
     },
 
     getEvents: function (callback) {
@@ -143,7 +188,7 @@ var TVGuideView = Backbone.View.extend({
         });
 
         // Attach the channel to the event guide
-        $('#channels :nth-child(' + index + ')', this.el).html(channelView.render());
+        $('#channels :nth-child(' + (index + 1) + ')', this.el).html(channelView.render());
 
         // Get event sections and attach events
         $(' #guide > .eventsection', this.el).each(function () {
@@ -194,6 +239,37 @@ var TVGuideView = Backbone.View.extend({
 
         // Append the generate HTML to the #body div
         $('#body').html(this.el);
+
+        var top = $('#channels').offset().top - 40;
+        var floating = false;
+
+        $(window).unbind('scroll');
+        $(window).scroll(function (event) {
+            var y = $(this).scrollTop();
+
+            if (y >= top) {
+                if (!floating) {
+                    floating = true;
+                    $('#channels').clone().attr('id', 'channels_tmp').insertBefore($('#channels'));
+
+                    $('#channels_tmp').css({
+                        position: 'fixed',
+                        top: 40,
+                        width: $('#channels').width(),
+                        zIndex: 100000000000
+                    });
+                }
+            } else {
+                floating = false;
+                $('#channels').css({
+                    position: 'relative',
+                    top: 0,
+                    zIndex: '0'
+                });
+
+                $('#channels_tmp').remove();
+            }
+        });
 
         // Hide the loading spinner animation
         GUIA.loadingOverlay('hide');

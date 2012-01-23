@@ -83,11 +83,12 @@
         $tip
           .remove()
           .css({ top: 0, left: 0, display: 'block' })
-          .prependTo(document.body)
-
-        pos = $.extend({}, this.$element.offset(), {
-          width: this.$element[0].offsetWidth
-        , height: this.$element[0].offsetHeight
+          //.prependTo(document.body)
+          .prependTo(this.options.el)
+          
+        pos = $.extend({}, $(this.options.popoverEl).offset(), {
+          width: $(this.options.popoverEl)[0].offsetWidth
+        , height: $(this.options.popoverEl)[0].offsetHeight
         })
 
         actualWidth = $tip[0].offsetWidth
@@ -130,6 +131,7 @@
       $tip.removeClass('in')
 
       function removeElement () {
+          console.log($tip);
         $tip.remove()
       }
 

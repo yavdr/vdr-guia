@@ -1,75 +1,83 @@
 var EventView = Backbone.View.extend({
     template: 'EventTemplate',
-    eventType: 'epg',
 
     events: {
-        'click #showallposters': 'showallposters',
-        'click .lightboxPoster': 'lightboxPoster',
-        'click .recordThis > img': 'recordEvent',
-        'hover .recordThis > img': 'hoverRecordEvent'
+        'click a.showDetails': 'showDetails',
+        'hover .isSeries': 'highlightNextBroadcast',
+        'click .isSeries': 'showNextBroadcast'
     },
 
-    showallposters: function () {
-        var mediaGrid = $('#showallpostersDialog').find('ul.media-grid');
+    showDetails: function (ev) {
+        switch ($(ev.currentTarget).data('view')) {
+        case 'cast':
+            this.renderCast();
+            GUIA.router.navigate('!/Event/' + this.model.get('_id') + '/cast');
 
-        _.each(this.event.get('tmdb').posters, function (poster) {
-            if (poster.image.size == 'thumb') {
-                mediaGrid.append('<li><a><img class="thumbnail" src="' + poster.image.url + '"/></a></li>');
-            }
-        });
+            break;
 
-        $('#showallpostersDialog').modal({
-            backdrop: true,
-            keyboard: true,
-            show: true
-        });
+        case 'person':
+            GUIA.router.navigate('!/Person/' + $(ev.currentTarget).data('personid'), true);
+            break;
+
+        case 'posters':
+            this.renderPosters();
+            GUIA.router.navigate('!/Event/' + this.model.get('_id') + '/posters');
+            break;
+
+        case 'event':
+            this.renderDescription();
+            GUIA.router.navigate('!/Event/' + this.model.get('_id'));
+            break;
+        }
     },
 
-    lightboxPoster: function (ev) {
-        var id = $(ev.currentTarget).attr('id').split('_');
-        id = id[1];
-
-        _.each(this.event.get('tmdb').posters, function (poster) {
-            if (poster.image.size == 'mid' && poster.image.id == id) {
-                $('#a_' + $(ev.currentTarget).attr('id')).fancybox({
-                    openEffect: 'elastic',
-                    closeEffect: 'elastic',
-                    href: poster.image.url
-                });
-            }
-        });
-    },
-
-    recordEvent: function (ev) {
-        if (this.event.get('timer_active')) {
-            console.log('Delete timer for: ' + this.event.get('_id'));
-            this.event.set({timer_active: false});
-            $(ev.currentTarget).attr('src', '/icons/devine/black/16x16/Circle.png');
+    highlightNextBroadcast: function (ev) {
+        if (ev.type == 'mouseenter') {
+            $(ev.currentTarget).css({
+                backgroundColor: '#DCEAF4'
+            });
         } else {
-            console.log('Create timer for: ' + this.event.get('_id'));
-            this.event.set({timer_active: true});
-            $(ev.currentTarget).attr('src', '/icons/devine/black/16x16/Circle-2.png');
+            $(ev.currentTarget).css({
+                backgroundColor: ''
+            });
         }
     },
 
-    hoverRecordEvent: function (ev) {
-        var image = '';
-        var image_record = '-2';
+    showNextBroadcast: function (ev) {
+        GUIA.router.navigate('!/Event/' + $(ev.currentTarget).data('id'), true);
+    },
 
-        if (this.event.get('timer_active')) {
-            image = '-2';
-            image_record = '';
+    renderDescription: function () {
+        if (this.descriptionView === undefined) {
+            this.descriptionView = new EventDescriptionView({
+                model: this.model,
+                el: $('.eventDescription', this.el)
+            });
         }
 
-        switch (ev.type) {
-            case 'mouseenter':
-                $(ev.currentTarget).attr('src', '/icons/devine/black/16x16/Circle' + image_record + '.png');
-                break;
+        this.descriptionView.render();
+    },
 
-            case 'mouseleave':
-                $(ev.currentTarget).attr('src', '/icons/devine/black/16x16/Circle' + image + '.png');
-                break;
-        };
+    renderPosters: function () {
+        if (this.postersView === undefined) {
+            this.postersView = new EventPostersView({
+                model: this.model.get('posters'),
+                el: $('.eventDescription', this.el)
+            });
+        }
+
+        this.postersView.render();
+    },
+
+    renderCast: function () {
+        if (this.castView === undefined) {
+            this.castView = new EventCastView({
+                model: this.model,
+                el: $('.eventDescription', this.el)
+            });
+        }
+
+        this.castView.render();
     },
 
     render: function (callback) {
@@ -109,102 +117,36 @@ var EventView = Backbone.View.extend({
                 event.set({start_formatted: start.toString('HH:mm')});
                 event.set({date: start.toString('dd.MM')});
 
-                switch (self.eventType) {
-                    case 'tmdb':
-                        self.template = 'EventTmdbTemplate';
-                        break;
-                }
+                console.log(event);
+
+                var recordView = new EventRecordButtonView({
+                    model: event
+                });
+
+                recordView.render();
 
                 var template = _.template( $('#' + self.template).html(), {event: event} );
                 $(self.el).html( template );
+                $('.recordThis', self.el).append(recordView.el);
+
+                switch (self.options.view) {
+                case 'posters':
+                    self.renderPosters();
+                    break;
+
+                case 'cast':
+                    self.renderCast();
+                    break;
+
+                default:
+                    self.renderDescription();
+                    break;
+                }
+
                 callback.apply(self, []);
             }
         });
 
         return this;
-    },
-
-    generateHTML: function (callback) {
-        if (this.options.params.action !== undefined && this.options.params.action == 'posters') {
-            this.event.set({show: 'posters'});
-        }
-
-        callback.apply(this, [_.template(this.template, {event: this.event})]);
-    },
-
-    renderTemplate: function () {
-        if (typeof(this.url) == 'undefined') {
-            return this;
-        }
-
-        var self = this;
-        this.event = new EventModel();
-
-        this.event.fetch({
-            data: {
-                _id: this.options.params._id
-            },
-            success: function () {
-                var event = self.event;
-
-                if (event.get('tmdb') != null) {
-                    var tmdb = event.get('tmdb');
-
-                    //console.log(tmdb);
-                    self.eventType = 'tmdb';
-
-                    if (tmdb.posters.length > 0) {
-                        _.each(tmdb.posters, function (poster) {
-                            if (poster.image.size == 'cover') {
-                                event.set({image: poster.image.url});
-                                return;
-                            }
-                        });
-                    }
-
-                    if (event.get('image') == null) {
-                        event.set({'image': 'http://placehold.it/210x150&text=No%20Picture'});
-                    }
-                }
-
-                if (event.get('description') != null) {
-
-                }
-
-                var start = new XDate(event.get('start') * 1000);
-
-                event.set({start_formatted: start.toString('HH:mm')});
-                event.set({date: start.toString('dd.MM')});
-
-                switch (self.eventType) {
-                    case 'tmdb':
-                        self.url = 'event/tmdb.html';
-                        break;
-                }
-
-                console.log(event);
-
-                $.ajax({
-                    url: "/templates/" + self.url,
-                    success: function (res) {
-                        self.template = res;
-                        self.event;
-                        self.render();
-                    }
-                });
-            }
-        });
-
-        if (this.template == null) {
-            $.ajax({
-                url: "/templates/" + self.url,
-                success: function (res) {
-                    self.template = res;
-                    self.render();
-                }
-            });
-        } else {
-            this.render();
-        }
     }
 });

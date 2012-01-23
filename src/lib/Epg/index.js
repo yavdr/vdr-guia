@@ -2,6 +2,28 @@ var async = require('async');
 var channels = mongoose.model('Channel');
 var events = mongoose.model('Event');
 var movies = mongoose.model('MovieDetail');
+var actorSchema = mongoose.model('Actor');
+
+function fetchActorDetails (actors, callback) {
+    var result = new Array();
+    
+    async.map(actors, function (actor, callback) {
+        console.log(actor);
+        var query = actorSchema.findOne({_id: actor});
+
+        query.populate('tmdbId', ['profile']);
+        query.run(function (err, doc) {
+            if (doc != null) {
+                result.push(doc);
+                callback(null, null);
+            } else {
+                callback(null, null);
+            }
+        });
+    }, function (err, actorsResult) {
+        callback(result);
+    });
+}
 
 function Epg () {
 
@@ -26,6 +48,157 @@ Epg.prototype.getPrimetimeEvent = function (channl_id, day, callback) {
     });
 };
 
+Epg.prototype.getTodaysHighlight = function (channel_id) {
+    var query = events.findOne({'tmdbId.rating': {$exists: true}});
+
+    if (channel_id !== undefined) {
+        query.where('channel_id', channel_id);
+    }
+
+    query.populate('tmdbId');
+
+    //query.or([{'tmdbId.rating': {$exists: true}}]);
+    query.sort('tmdbId.rating', -1);
+
+    query.run(function (err, result) {
+        console.log(arguments);
+    });
+};
+
+Epg.prototype._buildEvent = function (doc, withSubEvents, callback) {
+    var event = {
+        _id: doc.get('_id'),
+        channel: doc.get('channel'),
+        channel_id: doc.get('channel_id'),
+        title: doc.get('title'),
+        short_description: doc.get('short_description'),
+        description: doc.get('description'),
+        start: doc.get('start'),
+        stop: doc.get('stop'),
+        duration: doc.get('duration'),
+        timer_active: doc.get('timer_active'),
+        timer_exists: doc.get('timer_exists'),
+        timer_id: doc.get('timer_id')
+    };
+    
+    doc.get('type') !== undefined ? event.type = doc.get('type') : true;
+    doc.get('actors') !== undefined ? event.actors = doc.get('actors') : true;
+    doc.get('category') !== undefined ? event.category = doc.get('category') : true;
+    doc.get('components') !== undefined ? event.components = doc.get('components') : true;
+    doc.get('country') !== undefined ? event.country = doc.get('country') : true;
+    doc.get('genre') !== undefined ? event.genre = doc.get('genre') : true;
+    doc.get('parental_rating') !== undefined ? event.parental_rating = doc.get('parental_rating') : true;
+    doc.get('year') !== undefined ? event.year = doc.get('year') : true;
+    
+    async.parallel([
+        function (callback) {
+            if (withSubEvents === true && doc.get('type') == 'series') {
+                events.find({
+                    title: doc.get('title'),
+                    channel_id: doc.get('channel_id').get('_id'),
+                    start: {
+                        $gt: parseInt(new Date().getTime() / 1000)
+                    }
+                }, null, {
+                    skip: 1,
+                    limit: 10,
+                    sort: {
+                        start: 1
+                    }
+                }, function (err, docs) {
+                    event.broadcastings = docs;
+                    callback();
+                });
+            } else {
+                callback();
+            }
+        }, function (callback) {
+            if (doc.get('tmdbId')) {
+                if (doc.get('tmdbId').get('translated') === true) {
+                    event.description = doc.get('tmdbId').get('overview');
+                }
+
+                if (doc.get('tmdbId').get('rating') !== undefined) {
+                    event.rating = doc.get('tmdbId').get('rating');
+                    event.votes = doc.get('tmdbId').get('votes');
+                }
+
+                if (doc.get('tmdbId').get('posters') !== undefined) {
+                    if (doc.get('tmdbId').get('posters').length > 0) {
+                        doc.get('tmdbId').get('posters').forEach(function (poster) {
+                            if (poster.image.size == 'cover') {
+                                event.image = poster.image.url;
+                                return;
+                            }
+                        });
+                    }
+
+                    event.posters = doc.get('tmdbId').get('posters');
+                }
+
+                if (doc.get('tmdbId').get('backdrops') !== undefined) {
+                    event.backdrops = doc.get('tmdbId').get('backdrops');
+                }
+
+                if (doc.get('tmdbId').get('cast') !== undefined) {
+                    event.crew = doc.get('tmdbId').get('cast');
+                }
+
+                event.actors = doc.get('tmdbId').get('actors');
+            } else {
+                if (doc.get('rating') != null) {
+                    event.rating = doc.get('rating') * 2;
+                }
+            }
+            
+            console.log(event.actors);
+
+            if (event.actors !== undefined && event.actors.length != 0) {
+                fetchActorDetails(event.actors, function (actors) {
+                    event.actors = actors;
+                    callback();
+                });
+            } else {
+                callback();
+            }
+        }
+    ], function () {
+        callback(event);
+    });
+};
+
+Epg.prototype._query = function (query, withSubEvents, callback) {
+    var self = this;
+    
+    query.populate('channel_id');
+    query.populate('actors');
+    query.populate('tmdbId');
+    query.populate('tmdbId.actors');
+
+    query.exec(function (err, docs) {
+        if (err) {
+            log.err(err);
+            callback();
+            return;
+        }
+        
+        var result = new Array();
+        
+        async.map(docs instanceof Array ? docs : new Array(docs), function (doc, callback) {
+            self._buildEvent(doc, withSubEvents, function (event) {
+                result.push(event);
+                callback(null, null);
+            });
+        }, function () {
+            if (result.length == 1) {
+                callback(result[0]);
+            } else {
+                callback(result);
+            }
+        });
+    });
+};
+
 Epg.prototype.getEvent = function (eventId, callback) {
     var query = events.findOne();
     query.where('_id', eventId);
@@ -33,49 +206,19 @@ Epg.prototype.getEvent = function (eventId, callback) {
     query.populate('channel_id');
     query.populate('actors');
     query.populate('tmdbId');
+    query.populate('tmdbId.actors');
 
-    query.run(function (err, doc) {
-        if (doc == null) {
-            callback(null);
-            return;
-        }
+    this._query(query, true, callback);
+};
 
-        if (doc.get('tmdbId')) {
-            var details = doc.get('tmdbId');
+Epg.prototype.getEventsRange = function (channelId, starttime, stoptime, callback) {
+    var query = events.find({}, ['title', 'type', 'description', 'short_description', 'timer_active', 'timer_exists', 'start', 'stop', 'duration']);
 
-            details.set('directors', new Array());
-            details.set('writers', new Array());
-            details.set('actors', new Array());
+    query.where('channel_id', channelId);
+    query.where('start').gte(starttime).lt(stoptime);
+    query.sort('start', 1);
 
-            if (details.get('cast') !== undefined) {
-                details.get('cast').forEach(function (cast) {
-                    switch (cast.department) {
-                        case 'Directing':
-                            details.get('directors').push(cast);
-                            break;
-
-                        case 'Writing':
-                            details.get('writers').push(cast);
-                            break;
-
-                        case 'Actors':
-                            details.get('actors').push(cast);
-                            break;
-
-                        default:
-                            log.dbg('Unknown type for tmdb cast data: ' + cast.department);
-                            break;
-                    }
-                });
-            }
-
-            delete(details.cast);
-
-            doc.set('tmdb', details);
-        }
-
-        callback(doc);
-    });
+    this._query(query, false, callback);
 };
 
 Epg.prototype.getEvents = function (channelId, start, limit, callback) {
@@ -89,9 +232,21 @@ Epg.prototype.getEvents = function (channelId, start, limit, callback) {
     query.skip(start);
     query.limit(limit);
 
-    query.exec(function (err, doc) {
-        callback(doc);
+    this._query(query, false, callback);
+};
+
+Epg.prototype.searchEvents = function (q, limit, callback) {
+    var query = events.find({
+        title: new RegExp('(^| )' + q, "ig"),
+        start: {
+            $gt: parseInt(new Date().getTime() / 1000)
+        }
     });
+
+    query.sort('start', 1);
+    query.limit(limit);
+
+    this._query(query, false, callback);
 };
 
 Epg.prototype.createTimer = function (eventId) {

@@ -1,6 +1,14 @@
 var NavigationView = Backbone.View.extend({
     template: null,
 
+    events: {
+        'click a.brand': 'navigate',
+        'click li > a': 'navigate',
+        'click #loginBtn': "login",
+        'click #logoutBtn': "logout",
+        'keypress #search': 'loadSearch'
+    },
+
     initialize: function () {
         var self = this;
 
@@ -9,8 +17,8 @@ var NavigationView = Backbone.View.extend({
                 var template = _.template( $("#LoginFormTemplate").html(), {} );
                 self.el.children('div.fill').children('div.container').append(template);
             } else {
-                var template = _.template( $("#SearchFormTemplate").html(), {} );
-                self.el.children('div.fill').children('div.container').append(template);
+                var SearchView = new NavigationSearchView({});
+                self.el.children('div.fill').children('div.container').append(SearchView.render().el);
             }
 
             data.items.forEach(function (item) {
@@ -48,7 +56,7 @@ var NavigationView = Backbone.View.extend({
             }
 
             if (item.get('items')) {
-                var dropdownHref = $('<a></a>').html(item.get('title')).addClass('menu');
+                var dropdownHref = $('<a></a>').html(item.get('title')).addClass('menu').css('cursor', 'pointer');
                 var dropdownUl = $('<ul></ul>').addClass('menu-dropdown');
                 var dropdownLi = $('<li></li>').append(dropdownHref).append(dropdownUl).addClass('menu').attr('data-dropdown', 'dropdown');
 
@@ -71,17 +79,18 @@ var NavigationView = Backbone.View.extend({
         });
     },
 
-    events: {
-        'click li > a': 'navigate',
-        'click #loginBtn': "login",
-        'click #logoutBtn': "logout",
-        'keypress #search': 'liveSearch'
-    },
-
     navigate: function (ev) {
         if ($(ev.currentTarget).data('view') !== undefined) {
             GUIA.router.navigate('!/' + $(ev.currentTarget).data('view'), true);
         }
+    },
+    
+    loadSearch: function () {
+        if (location.href.match(/\!\/Search/)) {
+            return;
+        }
+        
+        GUIA.router.navigate('!/Search', true);
     },
 
     login: function (event) {
@@ -102,8 +111,8 @@ var NavigationView = Backbone.View.extend({
                     $('ul.nav').children().remove();
 
                     self.collection.fetch({success: function (collection, data) {
-                        var template = _.template( $("#SearchFormTemplate").html(), {} );
-                        self.el.children('div.fill').children('div.container').append(template);
+                        var SearchView = new NavigationSearchView({});
+                        self.el.children('div.fill').children('div.container').append(SearchView.render().el);
 
                         data.items.forEach(function (item) {
                             collection.add(item);
@@ -113,8 +122,6 @@ var NavigationView = Backbone.View.extend({
                         $('ul.nav').fadeIn();
                     }});
                 });
-
-                window.location.hash = '#';
             }
         });
 
@@ -130,8 +137,6 @@ var NavigationView = Backbone.View.extend({
                 $('ul.nav').children().remove();
                 $('.pull-right').children().remove();
 
-                window.location.hash = '#';
-
                 self.collection.fetch({success: function (collection, data) {
                     if (!data.loggedIn) {
                         var template = _.template( $("#LoginFormTemplate").html(), {} );
@@ -144,34 +149,10 @@ var NavigationView = Backbone.View.extend({
 
                     $('.pull-right').fadeIn();
                     $('ul.nav').fadeIn();
+
+                    GUIA.router.navigate('!/Welcome', true);
                 }});
             });
         });
-    },
-
-    liveSearch: function (ev) {
-        if (this.timeoutId !== undefined) {
-            clearTimeout(this.timeoutId);
-        }
-
-        this.timeoutId = setTimeout(function () {
-            var searchresult = new SearchresultModel();
-            searchresult.fetch({
-                data: {
-                    query: $(ev.currentTarget).val()
-                }, success: function () {
-                    _.each(searchresult.get('events'), function (event) {
-                        var start = new Date();
-                        start.setTime(event.start);
-
-                        console.log(event.title + '(' + start.getHours() + ':' + start.getMinutes() + ')');
-                    });
-
-                    _.each(searchresult.get('actors'), function (actor) {
-                        console.log(actor.name + ' as ' + actor.character);
-                    });
-                }
-            });
-        }, 300);
     }
 });

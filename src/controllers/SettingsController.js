@@ -7,6 +7,10 @@ var async = require('async');
 
 io.sockets.on('connection', function (socket) {
     socket.on('ChannelModel:create', function (data, callback) {
+        if (!socket.handshake.session.loggedIn) {
+            return false;
+        }
+        
         data = data.model;
 
         channels.update({_id: data._id}, {active: data.active}, false, function () {
@@ -15,6 +19,10 @@ io.sockets.on('connection', function (socket) {
     });
 
     socket.on('Configuration:create', function (data, callback) {
+        if (!socket.handshake.session.loggedIn) {
+            return false;
+        }
+        
         var config = mongoose.model('Configuration');
         config.findOne({}, function (err, doc) {
             var values = null;
@@ -38,9 +46,21 @@ io.sockets.on('connection', function (socket) {
                     };
                     break;
 
-               case 'fetchThetvdbSeasons':
+                case 'fetchThetvdbSeasons':
                     values = {
                         fetchThetvdbSeasons: data.value
+                    };
+                    break;
+                
+                case 'vdrHost':
+                    values = {
+                        vdrHost: data.value
+                    };
+                    break;
+                        
+                case 'restfulPort':
+                    values = {
+                        restfulPort: data.value
                     };
                     break;
             }
@@ -56,6 +76,10 @@ io.sockets.on('connection', function (socket) {
     });
 
     socket.on('Configuration:fetch', function (data, callback) {
+        if (!socket.handshake.session.loggedIn) {
+            return false;
+        }
+        
         var config = mongoose.model('Configuration');
         config.findOne({}, function (err, doc) {
             if (doc.epgscandelay === undefined) {
@@ -67,6 +91,10 @@ io.sockets.on('connection', function (socket) {
     });
 
     socket.on('DatabaseStatistics:fetch', function (data, callback) {
+        if (!socket.handshake.session.loggedIn) {
+            return false;
+        }
+        
         async.parallel([
             function (callback) {
                 mongoose.connection.db.executeDbCommand({dbstats: 1}, function(err, result) {
@@ -124,25 +152,29 @@ io.sockets.on('connection', function (socket) {
             }
         ], function (err, results) {
             var stats = {};
-            
+
             results.forEach(function (result) {
                 for (var key in result) {
                     stats[key] = result[key];
                 }
             });
-            
+
             callback({success: true, data: stats});
         });
     });
 
     socket.on('Database:reset', function (data, callback) {
+        if (!socket.handshake.session.loggedIn) {
+            return false;
+        }
+        
         if (data.database === undefined && data.events === true) {
             events.collection.drop();
             actors.collection.drop();
             actorDetails.collection.drop();
             movieDetails.collection.drop();
         }
-        
+
         if (data.database === true && data.events === undefined) {
             channels.collection.drop();
             events.collection.drop();
@@ -150,7 +182,7 @@ io.sockets.on('connection', function (socket) {
             actorDetails.collection.drop();
             movieDetails.collection.drop();
         }
-        
+
         callback({success: true});
     });
 });

@@ -1,3 +1,13 @@
-<div>
-    <&= event.start_time() &> - <strong><&= event.get('title') &></strong>
+<div class="event">
+    <table>
+        <tr>
+            <td style="width: 47px;">
+                <&= event.start_time() &><br />
+                <&= parseInt(event.get('duration') / 60) &> min
+            </td>
+            <td>
+                <&= event.get('title') &>
+            </td>
+        </tr>
+    </table>
 </div>

@@ -10,14 +10,14 @@ function EpgImport (restful, numEvents) {
     this.restful = restful;
     this.numEvents = numEvents || 100;
 
-    var ChannelImport = require('../Channel/Import');
+    var ChannelImport = require(__dirname + '/../Channel/Import');
     this.channelImporter = new ChannelImport(restful);
 }
 
 EpgImport.prototype.start = function (callback) {
     var self = this;
     this.newEpg = false;
-    
+
     log.dbg("Starting epg import ...");
 
     this.channelImporter.start(function () {
@@ -86,9 +86,9 @@ EpgImport.prototype.extractDetails = function (channel, event, callback) {
         function (callback) {
             event.event_id = event.id;
             delete(event.id);
-            
+
             event.channel_id = channel._id;
-            
+
             if (event.description.match(/\nShow-Id: [0-9]{0,}/)) {
                 var show_id = event.description.match(/\nShow-Id: ([0-9]{0,})/);
                 event.show_id = show_id[1];
@@ -110,6 +110,10 @@ EpgImport.prototype.extractDetails = function (channel, event, callback) {
                 if (event.duration > 5400) {
                     event.category = 'eventually film';
                 }
+                
+                if (event.duration > 2400 && event.duration < 3900) {
+                    event.category = 'eventually series';
+                }
             }
 
             if (event.description.match(/\[[\*]{1,}\] /)) {
@@ -124,7 +128,7 @@ EpgImport.prototype.extractDetails = function (channel, event, callback) {
                 event.tip = {
                     genre: tip[1],
                     style: 'genre'
-                }
+                };
 
                 event.description = event.description.replace(/\[Genretipp .*?\] /, '');
             }
@@ -134,12 +138,17 @@ EpgImport.prototype.extractDetails = function (channel, event, callback) {
                 event.tip = {
                     genre: tip[1],
                     style: 'sparte'
-                }
+                };
 
                 event.description = event.description.replace(/\[Spartentipp .*?\] /, '');
             }
-
-            event.genre = event.contents;
+            
+            event.genre = new Array();
+            
+            event.contents.forEach(function (content) {
+                event.genre.push(content.split('/'));
+            });
+            
             delete(event.contents);
 
             callback(null, null);
@@ -166,7 +175,7 @@ EpgImport.prototype.extractDetails = function (channel, event, callback) {
                 }
             });
 
-            callback(null, null)
+            callback(null, null);
         }, function (callback) {
             if (event.details === undefined) {
                 callback(null, null);
@@ -219,6 +228,37 @@ EpgImport.prototype.extractDetails = function (channel, event, callback) {
         }
     ], function (err, results) {
         callback(event);
+    });
+};
+
+EpgImport.prototype.evaluateType = function (callback) {
+    mongoose.connection.db.executeDbCommand({
+        group : {
+           ns: 'events',
+           cond: {},
+           initial: {'count': 0},
+           $reduce: 'function(doc, out){ out.count++ }',
+           key: {title: 1, channel_id: 1}
+        }
+    }, function(err, dbres) {
+        if (dbres.documents[0].retval !== undefined) {
+            //If you need to alert users, etc. that the mapreduce has been run, enter code here
+            async.map(dbres.documents[0].retval, function (doc, callback) {
+                if (doc.count > 3) {
+                    log.dbg('Set as series: ' + doc.title + ' :: ' + doc.channel_id);
+                    EventSchema.update({title: doc.title, channel_id: doc.channel_id}, {type: 'series'}, {multi: true}, function () {
+                        callback(null, null);
+                    });
+                } else {
+                    callback(null, null);
+                }
+            }, function (err, result) {
+                log.dbg('Type evaluation done ..');
+                callback();
+            });
+        } else {
+            callback();
+        }
     });
 };
 

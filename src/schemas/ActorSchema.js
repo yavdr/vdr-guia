@@ -11,11 +11,16 @@ var ActorSchema = new Schema({
 
     tmdbId: {
         type: Schema.ObjectId,
-        ref: 'MovieDetail',
+        ref: 'ActorDetail',
         required: false
     }
 });
 
-ActorSchema.index({name: 1, character: -1}, {unique: true});
+ActorSchema.index({
+    name: 1,
+    character: 1
+}, {
+    unique: true
+});
 
 mongoose.model('Actor', ActorSchema);

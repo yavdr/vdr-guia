@@ -59,23 +59,26 @@ var GUIA = {
         loadedViews: {},
 
         routes: {
-            "": "welcomeRoute",
-            "!/Welcome": "welcomeRoute",
-            "!/Highlights": "highlightsRoute",
-            "!/TVGuide": "tvguideRoute",
-            "!/TVGuide/:date": "tvguideRoute",
-            "!/TVGuide/:date/:page": "tvguideRoute",
-            "!/Event/:id": "eventRoute",
-            "!/Event/:id/posters": "eventPostersRoute",
-            "!/Event/:id/cast": "eventCastRoute",
-            "!/Recordings": "recordingsRoute",
-            "!/Me": "profileRoute",
-            "!/Help": "helpRoute",
-            "!/Help/Shortcuts": "helpShortcutsRoute",
-            "!/Settings": "settingsRoute",
-            "!/Settings/:section": "settingsRoute",
-            "!/About": "aboutRoute",
-            "*actions": "notfoundRoute"
+            '': 'welcomeRoute',
+            '!/Welcome': 'welcomeRoute',
+            '!/Highlights': 'highlightsRoute',
+            '!/TVGuide': 'tvguideRoute',
+            '!/TVGuide/:date': 'tvguideRoute',
+            '!/TVGuide/:date/:page': 'tvguideRoute',
+            '!/Event/:id': 'eventRoute',
+            '!/Event/:id/:view': 'eventRoute',
+            '!/Person/:id': 'personRoute',
+            '!/Search': 'searchRoute',
+            '!/Search/:q': 'searchRoute',
+            '!/Recordings': 'recordingsRoute',
+            '!/Recordings/:section': 'recordingsRoute',
+            '!/Me': 'profileRoute',
+            '!/Help': 'helpRoute',
+            '!/Shortcuts': 'shortcutsRoute',
+            '!/Settings': 'settingsRoute',
+            '!/Settings/:section': 'settingsRoute',
+            '!/About': 'aboutRoute',
+            '*actions': 'notfoundRoute'
         },
 
         initialize: function () {
@@ -91,7 +94,18 @@ var GUIA = {
         route: function(route, name, callback) {
             return Backbone.Router.prototype.route.call(this, route, name, function() {
                 this.trigger.apply(this, ['beforeroute:' + name].concat(_.toArray(arguments)));
-                callback.apply(this, arguments);
+                var self = this;
+                var func_args = arguments;
+
+                socket.emit('loggedIn', function (loggedIn) {
+                    if (!loggedIn && (route != '!/Welcome' && route != '!/About')) {
+                        route = '!/Welcome';
+
+                        GUIA.router.navigate(route, true);
+                    } else {
+                        callback.apply(self, func_args);
+                    }
+                });
             });
         },
 
@@ -104,12 +118,12 @@ var GUIA = {
                 $('.nav > li > a[href="#' + req + '"]').parent().addClass('active');
             }
         },
-        
+
         welcomeRoute: function () {
             this.currentView = new WelcomeView();
             $('#body').html(this.currentView.render().el);
         },
-        
+
         highlightsRoute: function () {
             this.currentView = new HighlightsView();
             $('#body').html(this.currentView.render().el);
@@ -124,11 +138,12 @@ var GUIA = {
             });
         },
 
-        eventRoute: function (_id) {
+        eventRoute: function (_id, _view) {
             GUIA.loadingOverlay('show');
 
             this.currentView = new EventView({
                 _id: _id,
+                view: _view,
                 model: new EventModel
             });
 
@@ -138,57 +153,47 @@ var GUIA = {
             });
         },
 
-        eventPostersRoute: function (_id) {
+        personRoute: function (_id) {
             GUIA.loadingOverlay('show');
 
-            var self = this;
-
-            GUIA.loadView({
-                view: '/Event',
-                params: {
-                    _id: _id,
-                    action: 'posters'
-                },
-                callback: function (req, original) {
-                    self.render.apply(this, [req, original, self]);
-                }
+            this.currentView = new PersonView({
+                _id: _id
+            });
+            
+            this.currentView.render(function (el) {
+                $('#body').html(el);
+                GUIA.loadingOverlay('hide');
             });
         },
-        
-        eventCastRoute: function (_id) {
-            GUIA.loadingOverlay('show');
 
-            var self = this;
-
-            GUIA.loadView({
-                view: '/Event',
-                params: {
-                    _id: _id,
-                    action: 'posters'
-                },
-                callback: function (req, original) {
-                    self.render.apply(this, [req, original, self]);
-                }
+        searchRoute: function (q) {
+            this.currentView = new SearchView({
+                query: q
             });
-        },
-        
-        recordingsRoute: function () {
-            this.currentView = new RecordingsView();
+
             $('#body').html(this.currentView.render().el);
         },
-        
+
+        recordingsRoute: function (section) {
+            this.currentView = new RecordingsView({
+                section: section
+            });
+
+            $('#body').html(this.currentView.render().el);
+        },
+
         profileRoute: function () {
             this.currentView = new ProfileView();
             $('#body').html(this.currentView.render().el);
         },
-        
+
         helpRoute: function () {
             this.currentView = new HelpView();
             $('#body').html(this.currentView.render().el);
         },
-        
-        helpShortcutsRoute: function () {
-            this.currentView = new HelpShortcutsView();
+
+        shortcutsRoute: function () {
+            this.currentView = new ShortcutsView();
             $('#body').html(this.currentView.render().el);
         },
 
@@ -202,7 +207,7 @@ var GUIA = {
             $('#body').html(this.currentView.render().el);
             GUIA.loadingOverlay('hide');
         },
-        
+
         aboutRoute: function () {
             this.currentView = new AboutView();
             $('#body').html(this.currentView.render().el);

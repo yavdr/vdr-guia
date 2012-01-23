@@ -20,14 +20,13 @@ io.sockets.on('connection', function (socket) {
                     view: 'Help'
                 }, {
                     title: __('Shortcuts'),
-                    view: 'Help/Shortcuts'
+                    view: 'Shortcuts'
                 }, {
                     title: __('Settings'),
                     view: 'Settings'
                 }, {
                     title: __('Logout'),
                     link: 'logout',
-                    view: 'Logout',
                     id: 'logoutBtn'
                 }]
             }];
@@ -36,10 +35,10 @@ io.sockets.on('connection', function (socket) {
         } else {
             var menu = [{
                 title: __('Home'),
-                link: ''
+                view: 'Welcome'
             }, {
-                title: __('Contact'),
-                link: 'contact'
+                title: __('About'),
+                view: 'About'
             }];
 
             callback({items: menu, loggedIn: false});

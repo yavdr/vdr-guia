@@ -15,6 +15,11 @@ var EventSchema = new Schema({
         required: true
     },
 
+    type: {
+        type: String,
+        required: false
+    },
+
     short_description: {
         type: String,
         required: false
@@ -91,6 +96,6 @@ var EventSchema = new Schema({
     genre: []
 });
 
-EventSchema.index({event_id: 1, channel_id: -1}, {unique: true});
+EventSchema.index({event_id: 1, channel_id: 1}, {unique: true});
 
 mongoose.model('Event', EventSchema);
