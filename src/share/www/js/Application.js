@@ -26,7 +26,7 @@ var GUIA = {
 
         this.collections.navigationCollection = new NavigationCollection;
         this.navigation = new NavigationView({
-            el: $('.topbar'),
+            el: $('.navbar'),
             collection: GUIA.collections.navigationCollection
         });
 
@@ -61,10 +61,13 @@ var GUIA = {
         routes: {
             '': 'welcomeRoute',
             '!/Welcome': 'welcomeRoute',
+            '!/Login': 'loginRoute',
             '!/Highlights': 'highlightsRoute',
             '!/TVGuide': 'tvguideRoute',
             '!/TVGuide/:date': 'tvguideRoute',
             '!/TVGuide/:date/:page': 'tvguideRoute',
+            '!/Program': 'programRoute',
+            '!/Program/:channel': 'programRoute',
             '!/Event/:id': 'eventRoute',
             '!/Event/:id/:view': 'eventRoute',
             '!/Person/:id': 'personRoute',
@@ -98,8 +101,8 @@ var GUIA = {
                 var func_args = arguments;
 
                 socket.emit('loggedIn', function (loggedIn) {
-                    if (!loggedIn && (route != '!/Welcome' && route != '!/About')) {
-                        route = '!/Welcome';
+                    if (!loggedIn && (route != '!/Login' && route != '!/About')) {
+                        route = '!/Login';
 
                         GUIA.router.navigate(route, true);
                     } else {
@@ -124,6 +127,11 @@ var GUIA = {
             $('#body').html(this.currentView.render().el);
         },
 
+        loginRoute: function () {
+            this.currentView = new LoginView();
+            $('#body').html(this.currentView.render().el);
+        },
+
         highlightsRoute: function () {
             this.currentView = new HighlightsView();
             $('#body').html(this.currentView.render().el);
@@ -136,6 +144,13 @@ var GUIA = {
                 date: date,
                 page: page
             });
+        },
+
+        programRoute: function (channel) {
+            this.currentView = new ProgramView({
+                channel: channel
+            });
+            $('#body').html(this.currentView.render().el);
         },
 
         eventRoute: function (_id, _view) {
@@ -159,7 +174,7 @@ var GUIA = {
             this.currentView = new PersonView({
                 _id: _id
             });
-            
+
             this.currentView.render(function (el) {
                 $('#body').html(el);
                 GUIA.loadingOverlay('hide');
@@ -339,7 +354,7 @@ var GUIA = {
     loadingOverlay: function (method) {
         if (method == 'show') {
             if (!this.spinner.open) {
-        	this.spinner.open = true;
+                this.spinner.open = true;
                 this.spinner.overlayDiv = $('<div></div>').css({
                     position: 'fixed',
                     top: '0px',

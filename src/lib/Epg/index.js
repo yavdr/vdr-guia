@@ -6,7 +6,7 @@ var actorSchema = mongoose.model('Actor');
 
 function fetchActorDetails (actors, callback) {
     var result = new Array();
-    
+
     async.map(actors, function (actor, callback) {
         console.log(actor);
         var query = actorSchema.findOne({_id: actor});
@@ -80,7 +80,7 @@ Epg.prototype._buildEvent = function (doc, withSubEvents, callback) {
         timer_exists: doc.get('timer_exists'),
         timer_id: doc.get('timer_id')
     };
-    
+
     doc.get('type') !== undefined ? event.type = doc.get('type') : true;
     doc.get('actors') !== undefined ? event.actors = doc.get('actors') : true;
     doc.get('category') !== undefined ? event.category = doc.get('category') : true;
@@ -89,7 +89,7 @@ Epg.prototype._buildEvent = function (doc, withSubEvents, callback) {
     doc.get('genre') !== undefined ? event.genre = doc.get('genre') : true;
     doc.get('parental_rating') !== undefined ? event.parental_rating = doc.get('parental_rating') : true;
     doc.get('year') !== undefined ? event.year = doc.get('year') : true;
-    
+
     async.parallel([
         function (callback) {
             if (withSubEvents === true && doc.get('type') == 'series') {
@@ -138,6 +138,18 @@ Epg.prototype._buildEvent = function (doc, withSubEvents, callback) {
 
                 if (doc.get('tmdbId').get('backdrops') !== undefined) {
                     event.backdrops = doc.get('tmdbId').get('backdrops');
+
+                    var rndBackdrop = new Array();
+
+                    event.backdrops.forEach(function (backdrop) {
+                        if (980 <= backdrop.image.width && 1280 >= backdrop.image.width) {
+                            rndBackdrop.push(backdrop.image);
+                        }
+                    });
+
+                    if (rndBackdrop.length != 0) {
+                        event.randomBackdrop = rndBackdrop[Math.floor(Math.random() * rndBackdrop.length)];
+                    }
                 }
 
                 if (doc.get('tmdbId').get('cast') !== undefined) {
@@ -150,7 +162,7 @@ Epg.prototype._buildEvent = function (doc, withSubEvents, callback) {
                     event.rating = doc.get('rating') * 2;
                 }
             }
-            
+
             event.event_id = doc.get('event_id');
 
             if (event.actors !== undefined && event.actors.length != 0) {
@@ -161,6 +173,12 @@ Epg.prototype._buildEvent = function (doc, withSubEvents, callback) {
             } else {
                 callback();
             }
+        }, function (callback) {
+            /*dnode.getRating('X-Men', function (result) {
+                console.log(result);
+                callback();
+            });*/
+            callback();
         }
     ], function () {
         callback(event);
@@ -169,22 +187,29 @@ Epg.prototype._buildEvent = function (doc, withSubEvents, callback) {
 
 Epg.prototype._query = function (query, withSubEvents, callback) {
     var self = this;
-    
+
     query.populate('channel_id');
     query.populate('actors');
     query.populate('tmdbId');
     query.populate('tmdbId.actors');
 
     query.exec(function (err, docs) {
+        console.log(docs);
+
         if (err) {
             log.err(err);
             callback();
             return;
         }
-        
+
+        if (!docs) {
+            callback();
+            return;
+        }
+
         var result = new Array();
-        
-        async.map(docs instanceof Array ? docs : new Array(docs), function (doc, callback) {
+
+        async.mapSeries(docs instanceof Array ? docs : new Array(docs), function (doc, callback) {
             self._buildEvent(doc, withSubEvents, function (event) {
                 result.push(event);
                 callback(null, null);
@@ -211,8 +236,20 @@ Epg.prototype.getEvent = function (eventId, callback) {
     this._query(query, true, callback);
 };
 
+Epg.prototype.getEventById = function (eventId, channelId, callback) {
+    console.log(arguments);
+    var query = events.findOne({event_id: eventId});
+
+    query.populate('channel_id', null, {channel_id: channelId});
+    query.populate('actors');
+    query.populate('tmdbId');
+    query.populate('tmdbId.actors');
+
+    this._query(query, true, callback);
+};
+
 Epg.prototype.getEventsRange = function (channelId, starttime, stoptime, callback) {
-    var query = events.find({}, ['title', 'type', 'description', 'short_description', 'timer_active', 'timer_exists', 'start', 'stop', 'duration']);
+    var query = events.find({}, ['event_id', 'title', 'channel', 'type', 'description', 'short_description', 'timer_active', 'timer_exists', 'timer_id', 'start', 'stop', 'duration']);
 
     query.where('channel_id', channelId);
     query.where('start').gte(starttime).lt(stoptime);
@@ -222,12 +259,10 @@ Epg.prototype.getEventsRange = function (channelId, starttime, stoptime, callbac
 };
 
 Epg.prototype.getEvents = function (channelId, start, limit, callback) {
-    var date = new Date();
-
     var query = events.find({});
 
     query.where('channel_id', channelId);
-    query.$gt('stop', date.getTime() / 1000);
+    query.$gt('stop', parseInt(new Date().getTime() / 1000));
     query.sort('start', 1);
     query.skip(start);
     query.limit(limit);
@@ -237,11 +272,12 @@ Epg.prototype.getEvents = function (channelId, start, limit, callback) {
 
 Epg.prototype.searchEvents = function (q, limit, callback) {
     var query = events.find({
-        title: new RegExp('(^| )' + q, "ig"),
         start: {
             $gt: parseInt(new Date().getTime() / 1000)
         }
     });
+
+    query.or([{title: new RegExp(q, "ig")}, {short_description: new RegExp(q, "ig")}, {description: new RegExp(q, "ig")}]);
 
     query.sort('start', 1);
     query.limit(limit);

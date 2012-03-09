@@ -1,15 +1,17 @@
-var Channel = require('../lib/Channel');
+var Channel = require('../lib/Channel'),
+    Epg = require('../lib/Epg');
 
 io.sockets.on('connection', function (socket) {
     socket.on('ChannelCollection:read', function (data, callback) {
-        if (!socket.handshake.session.loggedIn) {
+        console.log(data);
+        
+        if (!socket.handshake.session.loggedIn && data.install === undefined) {
             return false;
         }
 
         var channels = new Channel();
-        var options = data;
 
-        channels.getAll(options, function (channels) {
+        channels.getAll(data, function (channels) {
             callback(channels);
         });
     });

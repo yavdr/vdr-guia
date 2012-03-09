@@ -3,7 +3,7 @@ var fs = require('fs');
 
 io.sockets.on('connection', function (socket) {
     var hs = socket.handshake;
-
+    
     socket.on('loggedIn', function (callback) {
         if (hs.session.loggedIn) {
             callback(true);
@@ -13,30 +13,22 @@ io.sockets.on('connection', function (socket) {
     });
 
     socket.on('User:login', function (data, callback) {
-        user.count({user: data.username, password: data.password}, function (err, count) {
+        log.dbg('User tries to login');
+
+        user.findOne({user: data.username, password: data.password}, function (err, doc) {
             var loggedIn = false;
 
-            if (count != 0) {
+            if (doc) {
+                log.dbg('User logged in successfully');
+
                 mongooseSessionStore.set(hs.sessionID, {loggedIn: true});
                 loggedIn = true;
                 hs.session.loggedIn = true;
-
                 hs.session.touch().save();
 
                 log.dbg('Setting up controllers ..');
-
-                fs.readdir(__dirname + '/', function (err, files) {
-                    if (err) throw err;
-                    files.forEach(function (file) {
-                        file = file.replace('.js', '');
-
-                        if (file != 'InstallController' && file != 'NavigationController' && file != 'AuthenticationController') {
-                            require(__dirname + '/' + file);
-                        }
-                    });
-
-                    callback({loggedIn: loggedIn});
-                });
+                
+                callback({loggedIn: loggedIn});
             } else {
                 callback({loggedIn: loggedIn});
             }

@@ -11,7 +11,7 @@ var TVGuideView = Backbone.View.extend({
 
         // Bind click for changing date
         'TVGuidePagination:dateSwitched': 'load',
-        
+
         'click .previousChannels': 'switchChannels',
         'click .nextChannels': 'switchChannels',
     },
@@ -128,7 +128,7 @@ var TVGuideView = Backbone.View.extend({
             }
         });
     },
-    
+
     switchChannels: function (ev) {
         if ($(ev.currentTarget).hasClass('nextChannels')) {
             this.options.page++;
@@ -216,7 +216,7 @@ var TVGuideView = Backbone.View.extend({
                     });
 
                     // Render the event
-                    eventDiv.html(eventView.render().el);
+                    eventDiv.append(eventView.render().el);
                 }
             });
         });
@@ -256,7 +256,7 @@ var TVGuideView = Backbone.View.extend({
                         position: 'fixed',
                         top: 40,
                         width: $('#channels').width(),
-                        zIndex: 100000000000
+                        zIndex: 999
                     });
                 }
             } else {
@@ -274,6 +274,12 @@ var TVGuideView = Backbone.View.extend({
         // Hide the loading spinner animation
         GUIA.loadingOverlay('hide');
 
+        return this;
+    },
+
+    remove: function () {
+        $(window).unbind('scroll');
+        $(this.el).remove();
         return this;
     }
 });

@@ -20,11 +20,7 @@ var InstallStepTwoView = Backbone.View.extend({
             vdrhost: $('#VDRHost').val(),
             restfulport: $('#restfulPort').val()
         }, function (data) {
-            console.log(data);
             if (data.reachable) {
-                var password = hex_sha512(self.model.get('password'));
-                self.model.set({password: password});
-
                 self.model.save();
 
                 $('#VDRHost').parent().parent().removeClass('error');

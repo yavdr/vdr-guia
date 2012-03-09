@@ -4,6 +4,7 @@ var rest = require('restler');
 var uuid = require('node-uuid');
 var async = require('async');
 var file = require('file');
+global.Dnode = require('dnode');
 
 function Bootstrap (app, express) {
     this.app = app;
@@ -37,8 +38,10 @@ Bootstrap.prototype.setup = function (callback) {
                 vdr.restfulPort = data.restfulPort;
                 vdr.restful = 'http://' + vdr.host + ':' + data.restfulPort;
 
-                self.setupLogos();
-                self.setupVdr();
+                self.setupDnode(function () {
+                    self.setupLogos();
+                    self.setupVdr();
+                });
             }
 
             if (callback !== undefined) {
@@ -122,8 +125,6 @@ Bootstrap.prototype.setupExpress = function (cb) {
     };
 
     global.log = this.logging;
-
-
 
     cb.call();
 };
@@ -287,6 +288,45 @@ Bootstrap.prototype.setupSocketIo = function () {
     });
 };
 
+Bootstrap.prototype.setupDnode = function (callback) {
+    var self = this;
+    var config = mongoose.model('Configuration');
+
+    config.findOne({}, function (err, doc) {
+        global.socialize = (doc.get('socializeKey') != null) ? true : false;
+
+        if (socialize === true) {
+            log.dbg('Setting up dnode ..');
+
+            var client = Dnode();
+
+            client.connect({
+                host: 'guia-server.yavdr.tv',
+                port: 7007,
+                reconnect: 600
+            }, function (remote, connection) {
+                remote.authenticateVdr(doc.get('socializeKey'), function (session) {
+                    log.dbg('Dnode  connected ..');
+                    
+                    if (session) {
+                        log.dbg('Dnode authenticated ..');
+                        global.dnodeVdr = session;
+
+                        if (!self.dnodeReconnect) {
+                            self.dnodeReconnect = true;
+                            callback();
+                        } else {
+                            log.dbg('Dnode reconnected');
+                        }
+                    }
+                });
+            });
+        } else {
+            callback();
+        }
+    });
+};
+
 Bootstrap.prototype.setupViews = function () {
     var ConfigurationSchema = mongoose.model('Configuration');
     log.dbg('Setting up views ..');
@@ -318,14 +358,7 @@ Bootstrap.prototype.setupViews = function () {
     jsFiles.push('/js/jquery/jquery-1.7.js');
 
     jsFiles.push('/js/jquery-plugins/blinky.js');
-    jsFiles.push('/js/jquery-plugins/bootstrap-alerts.js');
-    jsFiles.push('/js/jquery-plugins/bootstrap-buttons.js');
-    jsFiles.push('/js/jquery-plugins/bootstrap-dropdown.js');
-    jsFiles.push('/js/jquery-plugins/bootstrap-modal.js');
-    jsFiles.push('/js/jquery-plugins/bootstrap-scrollspy.js');
-    jsFiles.push('/js/jquery-plugins/bootstrap-tabs.js');
-    jsFiles.push('/js/jquery-plugins/bootstrap-twipsy.js');
-    jsFiles.push('/js/jquery-plugins/bootstrap-popover.js');
+    jsFiles.push('/js/jquery-plugins/bootstrap.js');
     jsFiles.push('/js/jquery-plugins/jquery.endless-scroll.js');
     jsFiles.push('/js/jquery-plugins/jquery.fancybox.js');
     jsFiles.push('/js/jquery-plugins/lionbars.min.js');
@@ -490,7 +523,7 @@ Bootstrap.prototype.setupEpgImport = function (restful) {
 
     var config = mongoose.model('Configuration');
     var EpgImport = require('./lib/Epg/Import');
-    var importer = new EpgImport(restful, 250);
+    var importer = new EpgImport(restful, 70);
 
     function runImporter () {
         importer.start(function (hadEpg) {
@@ -530,60 +563,11 @@ Bootstrap.prototype.setupExtendedDetails = function () {
 
     var self = this;
     var config = mongoose.model('Configuration');
-    var ActorDetails = require('./lib/Actor');
-    var MovieDetails = require('./lib/Movie');
-    var SeasonDetails = require('./lib/Season');
-    var EpgImport = require('./lib/Epg/Import');
-    var importer = new EpgImport();
-
-    var ConfigurationSchema = mongoose.model('Configuration');
-
-    ConfigurationSchema.findOne({}, function (err, data) {
-        async.parallel([function (callback) {
-            importer.evaluateType(function () {
-                if (data.get('fetchThetvdbSeasons')) {
-                    log.inf('Thetvdb Seasons fetching started ..');
-
-                    var seasonDetails = new SeasonDetails();
-                    seasonDetails.fetchAll(function () {
-                        log.inf('Thetvdb Seasons fetching finished ..');
-                        callback(null, null);
-                    });
-                } else {
-                    log.inf('Thetvdb Seasons fetching disabled ..');
-                    callback(null, null);
-                }
-            });
-        }, function (callback) {
-            if (data.get('fetchTmdbMovies')) {
-                log.inf('Tmdb Movies fetching started ..');
-
-                var movieDetails = new MovieDetails();
-                movieDetails.fetchAll(function () {
-                    log.inf('Tmdb Movies fetching finished ..');
-                    callback(null, null);
-                });
-            } else {
-                log.inf('Tmdb Movies fetching disabled ..');
-                callback(null, null);
-            }
-        }, function (callback) {
-            if (data.get('fetchTmdbActors')) {
-                log.inf('Tmdb Actors fetching started ..');
-
-                var actorDetails = new ActorDetails();
-                actorDetails.fetchAll(function () {
-                    log.inf('Tmdb Actors fetching finished ..');
-                    callback(null, null);
-                });
-            } else {
-                log.inf('Tmdb Actors fetching disabled ..');
-                callback(null, null);
-            }
-        }], function (err, result) {
-            log.inf('Extended details fetching finished ..');
-            self.extendedDetailsRunning = false;
-        });
+    var Channel = require('./lib/Channel');
+    
+    var channels = new Channel();
+    channels.import(function () {
+        self.extendedDetailsRunning = false;
     });
 };
 

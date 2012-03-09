@@ -54,8 +54,7 @@ Backbone.View.prototype.renderTemplate = function () {
 Backbone.View.prototype.destructor = function () {
     $(this.el).children().remove();
     $(this.el).unbind();
-}
-
+};
 
 var socket = io.connect(location.origin, {'connect timeout': 5000});
 
@@ -74,8 +73,6 @@ Backbone.sync = function (method, model, options) {
 
     params.model = model.toJSON() || {};
 
-    console.log(namespace + ':' + method);
-
     socket.emit(namespace + ':' + method, params, function (data) {
         if (data !== undefined && data.error !== undefined) {
             options.error(data);
@@ -88,6 +85,8 @@ Backbone.sync = function (method, model, options) {
         }
     });
 };
+
+Backbone.Model.prototype.idAttribute = "_id";
 
 XDate.parsers.unshift(function (str) {
     var parts = str.split('.');

@@ -1,6 +1,6 @@
 var SettingsChannelsView = Backbone.View.extend({
     template: 'SettingsChannelsTemplate',
-    className: 'span16 columns',
+    className: 'span9 columns',
 
     events: {
         'change #selectAllChannels': 'changeAllStates'
@@ -8,12 +8,16 @@ var SettingsChannelsView = Backbone.View.extend({
 
     initialize: function () {
         $(this.el).html(_.template( $('#' + this.template).html(), {} ));
+        GUIA.loadingOverlay('show');
 
         this.channellist = new ChannelCollection();
 
         var self = this;
         this.channellist.fetch({
             success: function (collection) {
+                $('#channels > tbody', self.el).children().remove();
+                $('#channels').addClass('table-striped');
+
                 collection.forEach(function (channel) {
                     var channelView = new SettingsChannelsChannelView({
                         model: channel
@@ -21,6 +25,8 @@ var SettingsChannelsView = Backbone.View.extend({
 
                     $('#channels > tbody', self.el).append(channelView.render().el);
                 });
+
+                GUIA.loadingOverlay('hide');
             }
         });
     },

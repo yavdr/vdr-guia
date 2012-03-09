@@ -100,5 +100,13 @@
 	"Todays highlight": "Todays highlight",
 	"Change VDR settings": "Change VDR settings",
 	"VDR IP": "VDR IP",
-	"restful Port": "restful Port"
+	"restful Port": "restful Port",
+	"Please select the channels that you want to see in GUIA.": "Please select the channels that you want to see in GUIA.",
+	"EPG data will be filled fro GUIA server with informations from either the GUIA community, tmdb or trakt": "EPG data will be filled fro GUIA server with informations from either the GUIA community, tmdb or trakt",
+	"Based on your tv behavior GUIA will recommend you shows and movies that could be interesting for you": "Based on your tv behavior GUIA will recommend you shows and movies that could be interesting for you",
+	"Installation <small>Introducing GUIA Social</small>": "Installation <small>Introducing GUIA Social</small>",
+	"GUIA Social": "GUIA Social",
+	"Program": "Program",
+	"Program <small><&= channels.models[0].get('name') &></small>": "Program <small><&= channels.models[0].get('name') &></small>",
+	"Program <small><&= model.get('name') &></small>": "Program <small><&= model.get('name') &></small>"
 }
